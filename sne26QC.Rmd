@@ -1,0 +1,256 @@
+---
+title: ""
+author: ""
+date: "`r Sys.Date()`"
+---
+
+# HPC work
+
+Previously, the fastq file was copied into `/scratch` on 
+the NYU HPC mercer cluster, on dhm267's account. dhm267 went ahead
+and ran BarNone with one mismatch.
+
+# Local work
+
+## Reading
+
+```{r,cache=T}
+datadir <- "~/lab/data/1609/dme203/"
+dir(datadir)
+```
+
+### Index
+
+```{r index_read,cache=T}
+index <- read.csv("prmr_smpl_index.csv",as.is=T)
+row.names(index) <- index$indexNumber
+head(index)
+strainBarcodes <- read.delim("nislow_revised.txt")
+sampleBarcodes <- read.delim("demuxing_barseq_index.txt")
+```
+
+### Counts
+
+```{r counts_read, cache=T}
+allFileNames <-  dir(datadir)[grepl("dme203counts.*txt",
+  dir(datadir))]
+rawCountsList <- list()
+for (fz in allFileNames) {
+  numberMismatches <- sub(".*(\\dMM).*","\\1",fz)
+  rawCountsList[[numberMismatches]] <-
+    read.table(paste0(datadir,fz),header=T)
+}
+rawCountsList[[1]][1:5,1:10]
+dim(rawCountsList[[1]])
+```
+
+```{r counts_melt,cache=T}
+datar <- list()
+for (MM in names(rawCountsList)) {
+  mcounts <- melt(rawCountsList[[MM]],
+    id.vars="Strain",value.name="Counts")
+  mcounts[,ncol(mcounts)+1:2] <- colsplit(mcounts$variable,"_",
+    c("SampleNum","Tag"))
+  sampleTotalCounts <- aggregate(Counts~variable,data=mcounts,sum)
+  rownames(sampleTotalCounts) <- sampleTotalCounts$variable
+  mcounts$TotalCounts <- sampleTotalCounts[mcounts$variable,"Counts"]
+  mcounts$RelativeCounts <- mcounts$Counts / mcounts$TotalCounts
+  mcounts$SampleNum <- sub("Sample","",mcounts$SampleNum)
+  mcounts[,ncol(mcounts)+1:5] <- index[mcounts$SampleNum,
+    c("upshifted","heatshocked")]
+  datar[[MM]] <- mcounts[,c("Strain","SampleNum","Tag",
+      "upshifted","heatshocked","Counts","RelativeCounts")]
+}
+```
+
+```{r write_MM_outputs,cache=T}
+for (MM in names(datar)) {
+  write.csv(file=paste0("sne26Counts",MM,"Melted.csv"),
+    x=subset(datar[[MM]],upshifted!=""))
+}
+for (MM in names(datar)) {
+  write.csv(file=paste0("sne26Counts",MM,".csv"),
+    x=dcast(subset(datar[[MM]],upshifted!=""),
+      Strain+Tag~SampleNum+upshifted+heatshocked,
+      value.var="Counts"))
+}
+```
+
+### Mismatch parameter?
+
+So which mismatch tolerance to use? The assumption is that some
+barcodes ain't perfect, and that Barnone will find the right one
+within a mismatch parameter. 
+
+Which one to use?
+
+Presumably there's only real barcodes in the library, so I should
+increase the parameter to the point where I get more reads per
+strain, but not at the point where strains start to canabalize counts
+from other strains.
+
+```{r,cache=T}
+summedCounts <- list()
+for (MM in names(datar)) {
+  summedCounts[[MM]] <- 
+    aggregate(Counts~Strain,FUN=sum,
+      data=subset(datar[[MM]],upshifted!=""))
+}
+```
+
+And here's what that looks like:
+```{r,cache=T}
+head(summedCounts[[1]])
+```
+
+Each plot below shows on one axis the total sum of counts for a strain
+with a certain mismatch parameter in BarNone (so 3MM means three
+mismatches are allowed), and the next highest mismatch on the y.
+So if they're the same value, it falls on the diagonal.
+
+If increasing the mismatch gets more counts for that Strain (good)
+then the point goes to the right. If that mismatch loses counts,
+the point goes down from the diagonal. This would be a case where
+the mismatch is so high that some other strain is canabalizing 
+counts from that strain.
+
+```{r,cache=T,eval=F}
+allSummedCounts <- rbind(
+  data.frame(summedCounts[["0MM"]],MM="0MM"),
+  data.frame(summedCounts[["1MM"]],MM="1MM"),
+  data.frame(summedCounts[["2MM"]],MM="2MM"),
+  data.frame(summedCounts[["3MM"]],MM="3MM"),
+  data.frame(summedCounts[["4MM"]],MM="4MM"),
+  data.frame(summedCounts[["5MM"]],MM="5MM"),
+  data.frame(summedCounts[["6MM"]],MM="6MM")
+)
+dallSummedCounts <- dcast(data=allSummedCounts,Strain~MM,value.var="Counts")
+g <- ggplot(dallSummedCounts)+
+  scale_y_log10()+scale_x_log10()+theme_bw()+
+  theme(legend.position="bottom")+
+  geom_point(size=0.1)
+g+aes(x=`0MM`,y=`1MM`)
+g+aes(x=`1MM`,y=`2MM`)
+g+aes(x=`2MM`,y=`3MM`)
+g+aes(x=`3MM`,y=`4MM`)
+g+aes(x=`4MM`,y=`5MM`)
+g+aes(x=`5MM`,y=`6MM`)
+```
+
+That's curious. 
+
+We can see that one more mismatch adds counts to many strains, but
+nothing is decreasing. There's a subset that get a small increase.
+As these increase more and more, it ends up that a lot are being
+canabalized.
+
+For now, let's proceed with 1 mismatch, but export all as well.
+
+
+```{r pick_one,cache=T}
+useMM <- "0MM"
+sdat <- subset(datar[[useMM]],upshifted!="")
+sdat[,-c((-1:0)+ncol(sdat))] <- lapply(sdat[,-c((-1:0)+ncol(sdat))],
+  factor)
+```
+
+To check.
+
+```{r checking_you_out_again,cache=T}
+apply(sdat[,2:(ncol(datar[[1]])-2)],2,table,exclude="")
+```
+```{r total_counts,cache=T}
+ggplot(sdat)+
+  aes(x=SampleNum,
+    col=SampleNum,weight=Counts)+
+  facet_grid(Tag~.)+geom_point(stat="count")+
+  theme(axis.text.x=element_text(angle=90))+
+  scale_y_log10()
+```
+
+How diverse are they?
+
+```{r shannon_of_samples,cache=T}
+ggplot(dcast(SampleNum+upshifted+heatshocked+Tag~.,
+    data=sdat,fun.aggregate=function(x){
+      tmp<-x*log(x)
+      return(-sum(tmp[!is.na(tmp)&!is.infinite(tmp)]))
+    },value.var="RelativeCounts"))+
+  aes(x=SampleNum:Tag,y=.)+
+  geom_point()+
+  facet_grid(heatshocked~upshifted,
+	scales="free_x",space="free")+
+  ylab("Shannon entropy, x is relative counts,\nthen is -sum(x*log(x))")+
+  theme(axis.text.x=element_text(angle=90))
+```
+
+
+```{r subsetting_analysisData,cache=T}
+sdatPostTotalPlots <- subset(sdat,
+  !( (SampleNum%in%c(111,12,98)&Tag=="DOWN") |
+     (SampleNum%in%c(109,12,85,90,95,97,98)&Tag=="UP")))
+```
+
+### PCA
+
+One more thing, let's try prinicpal components analysis to see if
+Replicates look like each other.
+
+**also, remember pmdmnc <- plotMDS(dmnc) in package limma**
+
+```{r pca,cache=T,eval=F}
+dsdat <- dcast(Strain~SampleNum+Tag+Replicate+Damaged+Repaired+Gate+Expanded,
+  data=sdatPostTotalPlots,value.var="Counts")
+rownames(dsdat) <- dsdat[,1]
+dsdat <- dsdat[,-1]
+pc <- prcomp(t(dsdat))
+pz <- data.frame(pc$x)
+pz[,ncol(pz)+(1:7)] <- colsplit(rownames(pz),"_",
+  names=c("Sample","Tag","Replicate","Damaged","Repaired","Gate","Expanded"))
+pz[ncol(pz)-(0:6)] <- lapply(pz[ncol(pz)-(0:6)],factor)
+```
+
+So now we plot PCs against each other...
+
+```{r pcaplot1,cache=T,eval=F}
+library(ggrepel)
+g <- ggplot(pz)+geom_point()
+g+aes(x=PC1,y=PC2,col=Tag)
+```
+
+So we'll facet by Tag to look at those seperately.
+
+```{r pcaplot2,cache=T,eval=F}
+g+facet_wrap(~Tag,scales="free")+
+  aes(x=PC1,y=PC2,col=Expanded:Gate:Damaged:Repaired)
+```
+
+
+```{r pcaplot3,cache=T,eval=F}
+g <- ggplot(subset(pz,
+    !(Expanded=="Expanded"&Gate=="high"&Damaged=="notDamaged")))+
+  geom_point()
+g+facet_wrap(~Tag,scales="free")+
+  aes(x=PC1,y=PC2,col=Expanded:Gate:Damaged:Repaired)+
+  geom_text_repel(aes(label=Sample),alpha=0.5,nudge_x=200)
+g+facet_wrap(~Tag,scales="free")+
+  aes(x=PC3,y=PC4,col=Expanded:Gate:Damaged:Repaired)+
+  geom_text_repel(aes(label=Sample),alpha=0.5,nudge_x=200)
+```
+
+
+Okay, so I will continue analysis with the `analysisData` object,
+exported below for consistency.
+
+```{r postPCA,cache=T}
+sdatPostPCA <- sdatPostTotalPlots
+analysisData <- sdatPostPCA
+```
+
+```{r output_qcd_counts,cache=T}
+dim(analysisData)
+unique(analysisData$SampleNum)
+write.csv(x=analysisData,
+  file="countedDataForAnalysissne26.csv")
+```
+
