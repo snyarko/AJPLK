@@ -14,14 +14,14 @@ and ran BarNone with one mismatch.
 
 ## Reading
 
-```{r,cache=T}
+```{r,cache=F}
 datadir <- "~/lab/data/1609/dme203/"
 dir(datadir)
 ```
 
 ### Index
 
-```{r index_read,cache=T}
+```{r index_read,cache=F}
 index <- read.csv("sne26index.csv",as.is=T)
 row.names(index) <- index$indexNumber
 head(index)
@@ -44,7 +44,7 @@ rawCountsList[[1]][1:5,1:10]
 dim(rawCountsList[[1]])
 ```
 
-```{r counts_melt,cache=T}
+```{r counts_melt,cache=F}
 datar <- list()
 for (MM in names(rawCountsList)) {
   mcounts <- melt(rawCountsList[[MM]],
@@ -56,10 +56,10 @@ for (MM in names(rawCountsList)) {
   mcounts$TotalCounts <- sampleTotalCounts[mcounts$variable,"Counts"]
   mcounts$RelativeCounts <- mcounts$Counts / mcounts$TotalCounts
   mcounts$SampleNum <- sub("Sample","",mcounts$SampleNum)
-  mcounts[,ncol(mcounts)+1:5] <- index[mcounts$SampleNum,
-    c("Q","time","replicate")]
+  mcounts[,ncol(mcounts)+1:6] <- index[mcounts$SampleNum,
+    c("Q","time","replicate","whichRun")]
   datar[[MM]] <- mcounts[,c("Strain","SampleNum","Tag",
-      "Q","time","replicate","Counts","RelativeCounts")]
+      "Q","time","replicate","Counts","RelativeCounts","whichRun")]
 }
 ```
 
@@ -147,7 +147,7 @@ canabalized.
 For now, let's proceed with 1 mismatch, but export all as well.
 
 
-```{r pick_one,cache=T}
+```{r pick_one,cache=F}
 useMM <- "0MM"
 sdat <- subset(datar[[useMM]],replicate!="")
 sdat[,-c((-1:0)+ncol(sdat))] <- lapply(sdat[,-c((-1:0)+ncol(sdat))],
@@ -172,7 +172,7 @@ ggplot(sdat)+
 How diverse are they?
 
 ```{r shannon_of_samples,cache=T}
-ggplot(dcast(SampleNum+Q+time+replicate+Tag~.,
+ggplot(dcast(SampleNum+Q+time+replicate+Tag+whichRun~.,
     data=sdat,fun.aggregate=function(x){
       tmp<-x*log(x)
       return(-sum(tmp[!is.na(tmp)&!is.infinite(tmp)]))
@@ -187,8 +187,8 @@ ggplot(dcast(SampleNum+Q+time+replicate+Tag~.,
 
 ```{r subsetting_analysisData,cache=T}
 sdatPostTotalPlots <- subset(sdat,
-  !( (SampleNum%in%c(12,111)&Tag=="DOWN") |
-     (SampleNum%in%c(12,90,109,85)&Tag=="UP")))
+  !( (SampleNum%in%c(12,111,98)&Tag=="DOWN") |
+     (SampleNum%in%c(12,90,109,85,97,98,95)&Tag=="UP")))
 ```
 
 ### PCA
