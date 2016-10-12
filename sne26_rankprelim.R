@@ -64,25 +64,17 @@ freq_df <- apply( countz[,-1], 2, function(x) { return (x/sum(x))})
 
 ordered_freqs <- apply( freq_df, 2, order, decreasing=T)
 
-# i like
-rank_freq <- apply( freq_df, 2, base::rank, ties.method="average")
-rownames(rank_freq) <- countz[,1]
+# actually you probs want to use rank, because of ties
 
-mrf <- melt(rank_freq)
-mrf[,ncol(mrf)+(1:6)] <- colsplit(mrf$Var2,"_",
-  names=c("Sample","tag","Q","time","rep","whichRun"))
-mrf$rep <- factor(factor(mrf$rep,
+#### ALTERNATIVELY here's the one I made in the QC file
+datar$replicate <- factor(factor(datar$replicate,
   labels=list("1"="A","2"="B","3"="C","4"="A","5"="B","6"="C")))
-
-g4 <- ggplot(dcast(mrf,Var1+tag+whichRun~time+Q,fun.aggregate=mean))+
-  facet_wrap(~whichRun)
-
-g4+aes(x=preShift_FALSE,y=preShift_TRUE)+geom_point(size=0.5,alpha=0.5)
-g4+aes(x=preShock_FALSE,y=preShock_TRUE)+geom_point(size=0.5,alpha=0.5)
-g4+aes(x=postShock_FALSE,y=postShock_TRUE)+geom_point(size=0.5,alpha=0.5)
-
-g4+aes(x=preShock_FALSE,y=postShock_FALSE)+geom_point(size=0.5,alpha=0.5)
-g4+aes(x=preShock_TRUE,y=postShock_TRUE)+geom_point(size=0.5,alpha=0.5)
+rankz <- dcast(datar,Strain+replicate+whichRun+Tag~time+Q,
+                value.var="Rank")
+g5 <- ggplot(rankz)+facet_wrap(~whichRun)
+g5+aes(x=preShift_FALSE,y=preShift_TRUE)+geom_point(size=0.5,alpha=0.5)
+g5+aes(x=preShock_FALSE,y=preShock_TRUE)+geom_point(size=0.5,alpha=0.5)
+g5+aes(x=postShock_FALSE,y=postShock_TRUE)+geom_point(size=0.5,alpha=0.5)
 
 
 

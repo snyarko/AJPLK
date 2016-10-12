@@ -55,15 +55,24 @@ for (MM in names(rawCountsList)) {
   rownames(sampleTotalCounts) <- sampleTotalCounts$variable
   mcounts$TotalCounts <- sampleTotalCounts[mcounts$variable,"Counts"]
   mcounts$RelativeCounts <- mcounts$Counts / mcounts$TotalCounts
+  sampleCounts <- dcast(mcounts,Strain~variable,value.var="Counts")
+  sampleRanks <- apply(sampleCounts[,-1],2,rank)
+  sampleRanks <- apply(sampleRanks,2,function(x){ return(max(x)-x) })
+  rownames(sampleRanks) <- sampleCounts[,1]
+  tmp <- melt(sampleRanks)
+  sampleRanks <- tmp$value
+  names(sampleRanks) <- paste0(tmp$Var1,tmp$Var2)
+  mcounts$Rank <- sampleRanks[paste0(mcounts$Strain,mcounts$variable)]
   mcounts$SampleNum <- sub("Sample","",mcounts$SampleNum)
   mcounts[,ncol(mcounts)+1:6] <- index[mcounts$SampleNum,
     c("Q","time","replicate","whichRun")]
   datar[[MM]] <- mcounts[,c("Strain","SampleNum","Tag",
-      "Q","time","replicate","Counts","RelativeCounts","whichRun")]
+      "Q","time","replicate","Counts","RelativeCounts",
+      "whichRun","Rank")]
 }
 ```
 
-```{r write_MM_outputs,cache=T}
+```{r write_MM_outputs,cache=F}
 for (MM in names(datar)) {
   write.csv(file=paste0("sne26Counts",MM,"Melted.csv"),
     x=subset(datar[[MM]],replicate!=""))
@@ -71,7 +80,7 @@ for (MM in names(datar)) {
 for (MM in names(datar)) {
   write.csv(file=paste0("sne26Counts",MM,".csv"),
     x=dcast(subset(datar[[MM]],replicate!=""),
-      Strain+Tag~SampleNum+Q+time,
+      Strain+Tag~SampleNum+Q+time+whichRun,
       value.var="Counts"))
 }
 ```
@@ -156,7 +165,7 @@ sdat[,-c((-1:0)+ncol(sdat))] <- lapply(sdat[,-c((-1:0)+ncol(sdat))],
 
 To check.
 
-```{r checking_you_out_again,cache=T}
+```{r checking_you_out_again,cache=F}
 apply(sdat[,2:(ncol(datar[[1]])-2)],2,table,exclude="")
 ```
 ```{r total_counts,cache=T}
@@ -185,7 +194,7 @@ ggplot(dcast(SampleNum+Q+time+replicate+Tag+whichRun~.,
 ```
 
 
-```{r subsetting_analysisData,cache=T}
+```{r subsetting_analysisData,cache=F}
 sdatPostTotalPlots <- subset(sdat,
   !( (SampleNum%in%c(12,111,98)&Tag=="DOWN") |
      (SampleNum%in%c(12,90,109,85,97,98,95)&Tag=="UP")))
