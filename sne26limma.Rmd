@@ -1,0 +1,41 @@
+
+```{r}
+datadir <- "~/lab/chunks/heatshockStephensProject/data/"
+mdatar <- read.csv(paste0(datadir,"countedDataForAnalysissne26.csv"))
+datar <- dcast(subset(mdatar,Tag=="UP"),Strain~SampleNum+whichRun+Q+time+replicate,value.var="Counts")
+rownames(datar) <- datar[,1]
+datar <- datar[,-1]
+
+d <- dcast(subset(mdatar,Tag=="UP"),
+  SampleNum+whichRun+Q+time+replicate~.,value.var="Counts")
+d$whichRun <- factor(d$whichRun)
+d$shifted <- ifelse(grepl("preShift",d$time),FALSE,TRUE)
+d$shocked <- ifelse(grepl("preShock",d$time),FALSE,TRUE)
+
+design <- model.matrix(~d$whichRun+d$shifted+d$shocked+d$shifted:d$Q+d$shocked)
+
+```
+
+```{r}
+library(limma)
+vdatar <- voom(datar,design=design,plot=T)
+
+fit <- lmFit(vdatar,design)
+
+head(design)
+
+runDiff <- eBayes(contrasts.fit(fit,c(0,1,0,0,0,0)))
+topTable(runDiff,sort.by="logFC")
+
+shiftDiff <- eBayes(contrasts.fit(fit,c(0,0,1,0,0,0)))
+topTable(shiftDiff,sort.by="logFC")
+
+shockDiff <- eBayes(contrasts.fit(fit,c(0,0,0,1,0,0)))
+topTable(shockDiff,sort.by="logFC")
+
+qshockDiff <- eBayes(contrasts.fit(fit,c(0,0,0,1,0,1)))
+topTable(qshockDiff,sort.by="logFC")
+
+
+```
+
