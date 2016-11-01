@@ -78,16 +78,10 @@ shockDiffTable[order(shockDiffTable$logFC,decreasing=T),][1:20,]
 ```
 Here's the ones that are more abundant when you heatshock.
 
-And when you heatshock and upshift with glutamine?
+And the ones that are increased when you heatshock with glutamine
+but not as much as when not glutamine?
 ```{r}
-qshockDiff <- eBayes(contrasts.fit(fit,c(0,0,0,1,0,1)))
-qshockDiffTable <- topTable(qshockDiff,sort.by="logFC",number=10000)
-qshockDiffTable[order(qshockDiffTable$logFC,decreasing=T),][1:20,]
-```
-
-And when you simply consider glutamine?
-```{r}
-qDiff <- eBayes(contrasts.fit(fit,c(0,0,0,1,0,1)))
+qDiff <- eBayes(contrasts.fit(fit,c(0,0,0,1,-1,1)))
 qDiffTable <- topTable(qDiff,sort.by="logFC",number=10000)
 qDiffTable[order(qDiffTable$logFC,decreasing=T),][1:20,]
 ```
