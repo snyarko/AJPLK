@@ -27,24 +27,19 @@ plot(density(apply(datar,1,function(x){sum(x)})[apply(datar,1,function(x){sum(x)
 sdatar <- datar[apply(datar,1,function(x){sum(x)})>15,]
 ```
 
-
 Here we build the design matrix.
 
 ```{r}
 d <- dcast(subset(mdatar,Tag=="UP"),
   SampleNum+whichRun+Q+time+replicate~.,value.var="Counts")
-d$whichRun <- factor(d$whichRun)
-d$shifted <- ifelse(grepl("preShift",d$time),FALSE,TRUE)
-d$shocked <- ifelse(grepl("preShock",d$time),FALSE,TRUE)
-design <- model.matrix(~d$whichRun+d$shifted+d$shocked+d$shifted:d$Q+d$shocked)
-design
-```
+shifted <- relevel(factor(!grepl("preShift",d$time)),"FALSE")
+shocked <- relevel(factor(grepl("postShock",d$time)),"FALSE")
+whichRun <- factor(d$whichRun)
+Q <- relevel(factor(d$Q),"FALSE")
 
-And now voom-itize and limma that sucka.
-
-```{r}
 library(limma)
-vdatar <- voom(sdatar,design=design,plot=T)
+design <- model.matrix(~0+whichRun+shifted+shifted:Q+shocked+shocked:Q)
+vdatar <- voom(sdatar,design=design,plot=F)
 fit <- lmFit(vdatar,design)
 ```
 
@@ -52,39 +47,49 @@ Then pick contrasts to look at, basically that's a vector of values
 that show which weights we're testing for difference associated.
 
 ```{r}
-head(design)
+data.frame(colnames(design))
 ```
 
-Which are differentially abundant between the two runs?
+Which are increased in the second run?
 ```{r}
-runDiff <- eBayes(contrasts.fit(fit,c(0,1,0,0,0,0)))
+runDiff <- eBayes(contrasts.fit(fit,c(-1,1,0,0,0,0,0)))
 runDiffTable <- topTable(runDiff,sort.by="logFC",number=10000)
 runDiffTable[order(runDiffTable$logFC,decreasing=T),][1:20,]
 ```
 
-Which are different in the shift or not?
+Which are increased in the glutamine flasks regardless of treatment?
 ```{r}
-shiftDiff <- eBayes(contrasts.fit(fit,c(0,0,1,0,0,0)))
+flaskDiff <- eBayes(contrasts.fit(fit,c(0,0,0,0,1,0,0)))
+flaskDiffTable <- topTable(flaskDiff,sort.by="logFC",number=10000)
+flaskDiffTable[order(flaskDiffTable$logFC,decreasing=T),][1:20,]
+```
+
+Which are increased in shifting? 
+```{r}
+shiftDiff <- eBayes(contrasts.fit(fit,c(0,0,1,0,0,0,0)))
 shiftDiffTable <- topTable(shiftDiff,sort.by="logFC",number=10000)
-shiftDiffTable[order(shiftDiffTable$logFC,decreasing=F),][1:20,]
+shiftDiffTable[order(shiftDiffTable$logFC,decreasing=T),][1:20,]
 ```
-Here are the top most reduced which you do the shift.
 
-Which different when shocked?
+Which are increased in glutamine shifting? 
 ```{r}
-shockDiff <- eBayes(contrasts.fit(fit,c(0,0,0,1,0,0)))
+qshiftDiff <- eBayes(contrasts.fit(fit,c(0,0,0,0,0,1,0)))
+qshiftDiffTable <- topTable(qshiftDiff,sort.by="logFC",number=10000)
+qshiftDiffTable[order(qshiftDiffTable$logFC,decreasing=T),][1:20,]
+```
+
+Which are increased in shocking? 
+```{r}
+shockDiff <- eBayes(contrasts.fit(fit,c(0,0,0,1,0,0,0)))
 shockDiffTable <- topTable(shockDiff,sort.by="logFC",number=10000)
-shockDiffTable[order(shockDiffTable$logFC,decreasing=T),][1:20,]
+subset(shockDiffTable[order(shockDiffTable$logFC,decreasing=T),],adj.P.Val<0.05)
 ```
-Here's the ones that are more abundant when you heatshock.
 
-And the ones that are increased when you heatshock with glutamine
-but not as much as when not glutamine?
+Which are increased in shocked glutamine flasks? 
 ```{r}
-qDiff <- eBayes(contrasts.fit(fit,c(0,0,0,1,-1,1)))
-qDiffTable <- topTable(qDiff,sort.by="logFC",number=10000)
-qDiffTable[order(qDiffTable$logFC,decreasing=T),][1:20,]
+qshockDiff <- eBayes(contrasts.fit(fit,c(0,0,0,0,0,0,1)))
+qshockDiffTable <- topTable(qshockDiff,sort.by="logFC",number=10000)
+subset(qshockDiffTable[order(qshockDiffTable$logFC,decreasing=T),],adj.P.Val<0.05)
 ```
-
 
 
