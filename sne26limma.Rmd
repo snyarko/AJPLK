@@ -56,12 +56,21 @@ runDiff <- eBayes(contrasts.fit(fit,c(-1,1,0,0,0,0,0)))
 runDiffTable <- topTable(runDiff,sort.by="logFC",number=10000)
 runDiffTable[order(runDiffTable$logFC,decreasing=T),][1:20,]
 ```
+Which are statistically significantly increased in the second run?
+```{r}
+subset(runDiffTable[order(runDiffTable$logFC,decreasing=T),],adj.P.Val<0.05)
+```
+
 
 Which are increased in the glutamine flasks regardless of treatment?
 ```{r}
 flaskDiff <- eBayes(contrasts.fit(fit,c(0,0,0,0,1,0,0)))
 flaskDiffTable <- topTable(flaskDiff,sort.by="logFC",number=10000)
 flaskDiffTable[order(flaskDiffTable$logFC,decreasing=T),][1:20,]
+```
+Which are statistically significantly increased in the glutamine flasks regardless of treatment?
+```{r}
+subset(flaskDiffTable[order(flaskDiffTable$logFC,decreasing=T),],adj.P.Val < 0.05)
 ```
 
 Which are increased in shifting? 
@@ -70,12 +79,21 @@ shiftDiff <- eBayes(contrasts.fit(fit,c(0,0,1,0,0,0,0)))
 shiftDiffTable <- topTable(shiftDiff,sort.by="logFC",number=10000)
 shiftDiffTable[order(shiftDiffTable$logFC,decreasing=T),][1:20,]
 ```
+Which are statistically significantly increased in shifting?
+```{r}
+subset(shiftDiffTable[order(shiftDiffTable$logFC,decreasing=T),],adj.P.Val < 0.05)
+```
+
 
 Which are increased in glutamine shifting? 
 ```{r}
 qshiftDiff <- eBayes(contrasts.fit(fit,c(0,0,0,0,0,1,0)))
 qshiftDiffTable <- topTable(qshiftDiff,sort.by="logFC",number=10000)
 qshiftDiffTable[order(qshiftDiffTable$logFC,decreasing=T),][1:20,]
+```
+Which are statistically significantly increased in glutamine shifting?
+```{r}
+subset(qshiftDiffTable[order(qshiftDiffTable$logFC,decreasing=T),],adj.P.Val < 0.05)
 ```
 
 Which are increased in shocking? 
